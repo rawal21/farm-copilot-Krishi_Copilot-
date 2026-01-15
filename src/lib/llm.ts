@@ -1,53 +1,76 @@
 
-import { GoogleGenerativeAI } from "@google/generative-ai"
+import { HfInference } from "@huggingface/inference"
 
-const apiKey = process.env.GEMINI_API_KEY
+const apiKey = process.env.HUGGINGFACE_API_KEY
 
 if (!apiKey) {
-  console.warn("GEMINI_API_KEY is not set.")
+  console.warn("HUGGINGFACE_API_KEY is not set.")
 }
 
-const genAI = new GoogleGenerativeAI(apiKey || "");
-const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+const hf = new HfInference(apiKey);
+const MODEL_NAME = "mistralai/Mistral-7B-Instruct-v0.2";
 
 export async function generateText(systemPrompt: string, userMessage: string) {
   try {
-    const result = await model.generateContent({
-        contents: [
-            { role: "user", parts: [{ text: systemPrompt + "\n\nUser: " + userMessage }] }
-        ]
+    const prompt = `<s>[INST] ${systemPrompt}\n\nUser: ${userMessage} [/INST]`;
+    
+    const result = await hf.textGeneration({
+      model: MODEL_NAME,
+      inputs: prompt,
+      parameters: {
+        max_new_tokens: 500,
+        temperature: 0.7,
+        return_full_text: false,
+      }
     });
-    return result.response.text();
+
+    return result.generated_text.trim();
   } catch (error) {
-    console.error("Gemini Error:", error);
+    console.error("HuggingFace Error:", error);
     return null;
   }
 }
 
 export async function generateJSON(systemPrompt: string, data: any) {
   try {
-    const jsonModel = genAI.getGenerativeModel({ 
-        model: "gemini-2.0-flash", 
-        generationConfig: { responseMimeType: "application/json" } 
-    });
+    // Explicitly ask for JSON in the prompt to ensure the model complies
+    const jsonPrompt = `
+    ${systemPrompt}
     
-    const result = await jsonModel.generateContent({
-        contents: [
-            { role: "user", parts: [{ text: systemPrompt + "\n\nData: " + JSON.stringify(data) }] }
-        ]
+    IMPORTANT: Data to process: ${JSON.stringify(data)}
+    
+    OUTPUT RULE: Return VALID JSON ONLY. No markdown, no explanation, no backticks.
+    `;
+    
+    const prompt = `<s>[INST] ${jsonPrompt} [/INST]`;
+
+    const result = await hf.textGeneration({
+        model: MODEL_NAME,
+        inputs: prompt,
+        parameters: {
+          max_new_tokens: 1000,
+          temperature: 0.3, // Lower temp for consistency
+          return_full_text: false,
+        }
     });
-    const text = result.response.text();
+
+    let text = result.generated_text.trim();
+    
+    // Clean up potential markdown formatting
+    if (text.startsWith("```json")) text = text.replace(/^```json/, '').replace(/```$/, '');
+    if (text.startsWith("```")) text = text.replace(/^```/, '').replace(/```$/, '');
+
     return JSON.parse(text);
   } catch (error) {
-    console.error("Gemini JSON Error:", error);
+    console.error("HuggingFace JSON Error:", error);
     return null;
   }
 }
 
-// Vision Helper
+// Vision Helper (Using a vision-capable HF model if needed, or placeholder)
 export async function analyzeImage(systemPrompt: string, imageUrl: string) {
-    // Note: For real vision, we need to fetch the image bytes. 
-    // This is a simplified placeholder if we can't fetch easily server-side.
-    // Ideally we pass base64.
+    // Basic HF inference doesn't support URL-based vision easily on free tier for all models
+    // We will use a dedicated vision model like 'llava-hf/llava-1.5-7b-hf' if we were strictly implementing it.
+    // For now, we'll keep the mock/placeholder or try to implement it if needed.
     return null; 
 }
