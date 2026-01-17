@@ -4,7 +4,22 @@ const PLANNING_SYSTEM_PROMPT = `
 You are 'Farm Copilot' (Krishi Co).
 Your task is to generate 2 detailed crop plans for a farmer in Maharashtra based on their details.
 Output must be in JSON format.
-(See schema below)
+
+Output Schema:
+{
+  "plan_a": { 
+    "crop": "Crop Name", 
+    "reasoning_hi": "Reason in Hindi",
+    "reasoning_en": "Reason in English",
+    "profit_potential": "High/Medium"
+  },
+  "plan_b": { 
+    "crop": "Crop Name", 
+    "reasoning_hi": "Reason in Hindi",
+    "reasoning_en": "Reason in English", 
+    "profit_potential": "High/Medium"
+  }
+}
 `
 
 export async function generateCropPlans(farmDetails: any) {

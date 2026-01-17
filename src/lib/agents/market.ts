@@ -36,6 +36,7 @@ export async function getMarketAdvice(marketData: MarketData[]) {
     Analyze these market prices. Should the farmer sell now or wait?
     Trend RISING = Wait. Trend FALLING = Sell.
     Output JSON: { "advice_mr": "...", "action": "SELL" | "HOLD" }
+    (Note: Put Hindi advice in 'advice_mr')
   `
   
   try {
