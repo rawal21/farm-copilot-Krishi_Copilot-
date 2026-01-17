@@ -8,23 +8,21 @@ if (!apiKey) {
 }
 
 const hf = new HfInference(apiKey);
-const MODEL_NAME = "mistralai/Mistral-7B-Instruct-v0.2";
+const MODEL_NAME = "meta-llama/Llama-3.2-3B-Instruct";
 
 export async function generateText(systemPrompt: string, userMessage: string) {
   try {
-    const prompt = `<s>[INST] ${systemPrompt}\n\nUser: ${userMessage} [/INST]`;
-    
-    const result = await hf.textGeneration({
+    const response = await hf.chatCompletion({
       model: MODEL_NAME,
-      inputs: prompt,
-      parameters: {
-        max_new_tokens: 500,
-        temperature: 0.7,
-        return_full_text: false,
-      }
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userMessage }
+      ],
+      max_tokens: 500,
+      temperature: 0.7,
     });
 
-    return result.generated_text.trim();
+    return response.choices[0].message.content?.trim() || "";
   } catch (error) {
     console.error("HuggingFace Error:", error);
     return null;
@@ -33,7 +31,6 @@ export async function generateText(systemPrompt: string, userMessage: string) {
 
 export async function generateJSON(systemPrompt: string, data: any) {
   try {
-    // Explicitly ask for JSON in the prompt to ensure the model complies
     const jsonPrompt = `
     ${systemPrompt}
     
@@ -42,19 +39,16 @@ export async function generateJSON(systemPrompt: string, data: any) {
     OUTPUT RULE: Return VALID JSON ONLY. No markdown, no explanation, no backticks.
     `;
     
-    const prompt = `<s>[INST] ${jsonPrompt} [/INST]`;
-
-    const result = await hf.textGeneration({
+    const response = await hf.chatCompletion({
         model: MODEL_NAME,
-        inputs: prompt,
-        parameters: {
-          max_new_tokens: 1000,
-          temperature: 0.3, // Lower temp for consistency
-          return_full_text: false,
-        }
+        messages: [
+            { role: "user", content: jsonPrompt } // Mistral 0.2 sometimes prefers all in User if not purely chat
+        ],
+        max_tokens: 1000,
+        temperature: 0.3, 
     });
 
-    let text = result.generated_text.trim();
+    let text = response.choices[0].message.content?.trim() || "";
     
     // Clean up potential markdown formatting
     if (text.startsWith("```json")) text = text.replace(/^```json/, '').replace(/```$/, '');

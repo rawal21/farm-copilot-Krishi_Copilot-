@@ -22,29 +22,75 @@ export async function GET(req: NextRequest) {
   return new NextResponse('Bad Request', { status: 400 })
 }
 
+// Helper to getting or creating farmer ID by phone
+async function getOrCreateFarmer(phone: string) {
+  const { data, error } = await supabase.from('farmers').select('id').eq('phone_number', phone).single()
+  if (data) return data.id
+  
+  const { data: newData, error: newError } = await supabase.from('farmers').insert({ phone_number: phone, full_name: 'Guest' }).select('id').single()
+  if (newData) return newData.id
+  return null
+}
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
     console.log('Incoming webhook:', JSON.stringify(body, null, 2))
 
-    // Parse WhatsApp Message
     const entry = body.entry?.[0]
     const changes = entry?.changes?.[0]
     const value = changes?.value
     const message = value?.messages?.[0]
 
     if (message) {
-      const from = message.from // User's phone number
+      const from = message.from 
       const text = message.text?.body
 
       if (from && text) {
-        // TODO: Fetch conversation history from DB
-        const replyText = await processOnboardingMessage(text, [], from)
+        const farmerId = await getOrCreateFarmer(from)
+
+        // 1. Save User Message
+        if (farmerId) {
+            await supabase.from('interactions').insert({
+                farmer_id: farmerId,
+                message_type: 'received',
+                content: text
+            })
+        }
+
+        // 2. Fetch History (Last 10)
+        let history = []
+        if (farmerId) {
+            const { data: dbHistory } = await supabase
+                .from('interactions')
+                .select('message_type, content')
+                .eq('farmer_id', farmerId)
+                .order('created_at', { ascending: false })
+                .limit(10)
+            
+            if (dbHistory) {
+                // Convert to LLM format (reverse order so oldest first)
+                history = dbHistory.reverse().map(i => ({
+                    role: i.message_type === 'received' ? 'user' : 'model',
+                    content: i.content
+                }))
+            }
+        }
+
+        // 3. Process with Agent
+        const replyText = await processOnboardingMessage(text, history, from)
         
+        // 4. Send & Save Response
         if (replyText) {
-             // In a real app, Import this from lib/whatsapp
-             console.log(`[Mock Send] To: ${from}, Message: ${replyText}`)
-             // await sendWhatsAppMessage(from, replyText) 
+          await sendWhatsAppMessage(from, replyText)
+          
+          if (farmerId) {
+            await supabase.from('interactions').insert({
+                farmer_id: farmerId,
+                message_type: 'sent',
+                content: replyText
+            })
+          }
         }
       }
     }
@@ -56,6 +102,10 @@ export async function POST(req: NextRequest) {
   }
 }
 
+// Ensure supabase is imported
+import { supabase } from '../../../lib/supabaseClient'
+
 // Import at top (mocking for the edit tool as I can't add imports easily without replacing whole file or careful placement)
 import { processOnboardingMessage } from '../../../lib/agents/onboarding'
+import { sendWhatsAppMessage } from '../../../lib/whatsapp'
 

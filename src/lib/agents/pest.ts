@@ -11,6 +11,7 @@ Output JSON:
   "treatment_mr": "...",
   "treatment_en": "..."
 }
+(Note: Put Hindi advice in 'treatment_mr')
 `
 
 export async function analyzeCropImage(imageUrl: string) {
